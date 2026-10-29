@@ -1,0 +1,24 @@
+{
+  "checkedAt": "2026-10-29T11:48+00:00",
+  "sources": [
+    {
+      "name": "Aree pedonali e ZTL",
+      "url": "https://dati.comune.milano.it/dataset/ds51_trafficotrasporti_aree_pedonali_ztl",
+      "updated": "2023-05-02"
+    },
+    {
+      "name": "Varchi Area C",
+      "url": "https://dati.comune.milano.it/dataset/ds82_infogeo_varchi_elettronici_localizzazione_",
+      "updated": "2026-10-25"
+    }
+  ],
+  "manualZones": [
+    "Quadrilatero della Moda"
+  ],
+  "rulePagesChanged": false,
+  "rulePagesErrors": [
+    "Area C: pagina non raggiungibile (HTTP Error 403: Forbidden)",
+    "Area C - calendario dei divieti: pagina non raggiungibile (HTTP Error 403: Forbidden)",
+    "ZTL Quadrilatero della Moda: pagina non raggiungibile (HTTP Error 403: Forbidden)"
+  ]
+}

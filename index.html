@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Area C e ZTL Milano</title>
+  <meta name="description" content="Mappa di Area C, ZTL e varchi di Milano con i dati ufficiali del Comune, la tua posizione e il controllo per la tua auto.">
+  <meta name="theme-color" content="#111315">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">Area C <span>e</span> ZTL <small>Milano</small></div>
+    <div class="now" id="now" aria-live="polite"></div>
+  </header>
+
+  <section class="map-wrap">
+    <div class="alert" id="alert" role="status" aria-live="assertive" hidden></div>
+    <div id="map"></div>
+    <div class="map-legend">
+      <span><i class="sw areac"></i>Area C</span>
+      <span><i class="sw ztl"></i>ZTL</span>
+      <span><i class="sw varco"></i>Varco</span>
+    </div>
+    <button class="locate" id="locate" aria-pressed="false">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      <span>Usa la mia posizione</span>
+    </button>
+  </section>
+
+  <main class="wrap">
+    <section class="card" id="auto">
+      <h2>La mia auto</h2>
+      <form class="car" id="carForm">
+        <label>Alimentazione
+          <select id="fuel">
+            <option value="benzina">Benzina</option>
+            <option value="gas">Benzina + GPL o metano</option>
+            <option value="diesel">Diesel</option>
+            <option value="ibrida-benzina">Ibrida benzina</option>
+            <option value="ibrida-diesel">Ibrida diesel</option>
+            <option value="elettrica">Elettrica</option>
+          </select>
+        </label>
+        <label id="euroField">Classe Euro
+          <select id="euro">
+            <option value="">Scegli…</option>
+            <option value="0">Euro 0</option>
+            <option value="1">Euro 1</option>
+            <option value="2">Euro 2</option>
+            <option value="3">Euro 3</option>
+            <option value="4">Euro 4</option>
+            <option value="5">Euro 5</option>
+            <option value="6">Euro 6</option>
+          </select>
+        </label>
+        <label id="subField" hidden>Sigla Euro 6
+          <select id="sub">
+            <option value="ABC">Euro 6 A, B o C</option>
+            <option value="DTEMP">Euro 6 D-TEMP</option>
+            <option value="D">Euro 6 D</option>
+          </select>
+        </label>
+        <label class="check" id="co2Field" hidden><input type="checkbox" id="co2"> CO₂ fino a 100 g/km (campo V.7 del libretto)</label>
+      </form>
+      <div id="carResult" aria-live="polite"></div>
+      <p class="hint">La classe Euro è sul libretto, campo V.9. <a id="plateLink" target="_blank" rel="noopener">Verifica ufficiale con la targa →</a></p>
+    </section>
+
+    <section class="card" id="areac">
+      <h2>Area C</h2>
+      <div id="areacInfo"></div>
+    </section>
+
+    <section class="card" id="ztl">
+      <h2>ZTL</h2>
+      <p class="hint">Tocca una ZTL per vederla sulla mappa. Gli orari e chi può entrare sono quelli dei dati del Comune.</p>
+      <ul class="ztl-list" id="ztlList"></ul>
+    </section>
+
+    <section class="card" id="dati">
+      <h2>Da dove vengono i dati</h2>
+      <div id="sources"></div>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <p>Strumento non ufficiale. In caso di dubbio valgono la segnaletica stradale e le pagine del <a href="https://www.comune.milano.it/argomenti/mobilita" target="_blank" rel="noopener">Comune di Milano</a>. Dati: Comune di Milano (licenza CC BY). Mappa: Esri, © OpenStreetMap.</p>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

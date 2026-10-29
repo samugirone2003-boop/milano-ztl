@@ -1,0 +1,42 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "ZTL",
+        "name": "Quadrilatero della Moda",
+        "schedule": "attiva tutti i giorni dalle 00:00 alle 24:00",
+        "rules": "Divieto di accesso e circolazione per tutti i veicoli, salvo le categorie autorizzate indicate dal Comune. Motoveicoli e ciclomotori possono entrare fino al 12 maggio 2028.",
+        "always": true,
+        "officialName": "Quadrilatero",
+        "source": "Perimetro ricalcato a mano dalla mappa ufficiale del Comune (incroci da OpenStreetMap). Il tratto lungo corso Vittorio Emanuele è approssimato.",
+        "sourceUrl": "https://www.comune.milano.it/servizi/mobilita/ztl-quadrilatero-della-moda",
+        "checked": "2026-10-29"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [9.190008, 45.467447],
+          [9.191052, 45.468445],
+          [9.192463, 45.469757],
+          [9.192782, 45.470063],
+          [9.194743, 45.471940],
+          [9.195225, 45.472248],
+          [9.197166, 45.470642],
+          [9.199255, 45.468797],
+          [9.198605, 45.468045],
+          [9.197998, 45.467147],
+          [9.197259, 45.466848],
+          [9.196948, 45.465894],
+          [9.195088, 45.465306],
+          [9.194022, 45.465008],
+          [9.193261, 45.464886],
+          [9.192467, 45.465600],
+          [9.190662, 45.467012],
+          [9.190008, 45.467447]
+        ]]
+      }
+    }
+  ]
+}
