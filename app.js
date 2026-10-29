@@ -402,14 +402,31 @@ function currentPosition() {
 
 const zonesAt = (lat, lon) => S.zones.filter(z => contains(z.geometry, lat, lon));
 
-// true/false se l'orario della ZTL è chiaro ("dalle 19:30 alle 6:00"), null se non si capisce (= prudenza).
+// Orario giornaliero di una ZTL in minuti, solo se scritto in modo chiaro ("tutti i giorni dalle 19:30 alle 6:00").
+function ztlHours(p) {
+  const m = (p.schedule || '').match(/^attiv[ao] tutti i giorni dalle (?:dalle )?(?:ore )?(\d{1,2})[:.](\d{2}) alle (?:ore )?(\d{1,2})[:.](\d{2})\s*$/i);
+  return m ? { start: Number(m[1]) * 60 + Number(m[2]), end: Number(m[3]) * 60 + Number(m[4]) } : null;
+}
+
+// true/false se l'orario della ZTL è chiaro, null se non si capisce (= prudenza).
 function ztlActiveNow(p, now = romeNow()) {
   if (isAlways(p)) return true;
-  const m = (p.schedule || '').match(/^attiv[ao] tutti i giorni dalle (?:dalle )?(?:ore )?(\d{1,2})[:.](\d{2}) alle (?:ore )?(\d{1,2})[:.](\d{2})\s*$/i);
-  if (!m) return null;
-  const start = Number(m[1]) * 60 + Number(m[2]), end = Number(m[3]) * 60 + Number(m[4]);
-  return start < end ? now.minutes >= start && now.minutes < end : now.minutes >= start || now.minutes < end;
+  const h = ztlHours(p);
+  if (!h) return null;
+  return h.start < h.end ? now.minutes >= h.start && now.minutes < h.end : now.minutes >= h.start || now.minutes < h.end;
 }
+
+// Minuti che mancano all'attivazione di una zona ora spenta (null se non si sa o se manca più di un giorno).
+function minutesToActivation(zone, now = romeNow()) {
+  if (zone.properties.kind === 'AREA_C') {
+    const start = toMin(S.rules.areaC.start);
+    return isAreaCDay(now.iso) && now.minutes < start ? start - now.minutes : null;
+  }
+  const h = ztlHours(zone.properties);
+  return h ? (h.start - now.minutes + 1440) % 1440 : null;
+}
+
+const clock = minutes => `${Math.floor(minutes / 60) % 24}:${String(minutes % 60).padStart(2, '0')}`;
 
 async function planRoute(e) {
   e.preventDefault();
@@ -427,22 +444,30 @@ async function planRoute(e) {
     let avoidC = document.getElementById('avoidC').checked;
     const notes = [];
 
-    // Se arrivo o partenza sono dentro una zona, il navigatore non può evitarla del tutto.
+    // Arrivo dentro una zona: se in questo momento la zona è spenta ti ci porto, se è attiva no.
     const toZones = zonesAt(to.lat, to.lon), fromZones = zonesAt(from.lat, from.lon);
+    const entering = []; // zone spente in cui il percorso entra per arrivare a destinazione
     const toZtl = toZones.find(z => z.properties.kind === 'ZTL');
-    if (toZtl && ztlActiveNow(toZtl.properties) !== false) {
-      return routeMessage('bad', `L'arrivo è dentro la ZTL ${toZtl.properties.name}`,
-        `${toZtl.properties.schedule || ''} Per non prendere la multa parcheggia fuori dalla ZTL e prosegui a piedi: scegli un arrivo appena fuori dal bordo tratteggiato o rosa sulla mappa.`);
+    if (toZtl) {
+      const on = ztlActiveNow(toZtl.properties);
+      if (on !== false) {
+        return routeMessage('bad', `L'arrivo è dentro la ZTL ${toZtl.properties.name}${on ? ', attiva ora' : ''}`,
+          `${on ? toZtl.properties.schedule || '' : 'L\'orario di questa ZTL nei dati del Comune non è chiaro, quindi per prudenza non ti ci porto.'} Per non prendere la multa parcheggia fuori dalla ZTL e prosegui a piedi: scegli un arrivo appena fuori dal bordo rosa sulla mappa.`);
+      }
+      entering.push(toZtl);
     }
-    if (toZtl) notes.push(`L'arrivo è nella ZTL ${toZtl.properties.name}, ora non attiva (${toZtl.properties.schedule}): esci prima che si attivi.`);
-    const allowed = [...fromZones, ...(toZtl ? [toZtl] : [])];
-    if (avoidC && (toZones.some(z => z.properties.kind === 'AREA_C') || fromZones.some(z => z.properties.kind === 'AREA_C'))) {
+    const toAreaC = toZones.find(z => z.properties.kind === 'AREA_C');
+    const fromAreaC = fromZones.find(z => z.properties.kind === 'AREA_C');
+    if (toAreaC && areaCActive() && carVerdict().level === 'bad') {
+      return routeMessage('bad', 'L\'arrivo è dentro Area C, attiva ora, e la tua auto non può entrare',
+        `Area C è attiva fino alle ${S.rules.areaC.end}. Parcheggia fuori dalla cerchia dei Bastioni oppure parti dopo le ${S.rules.areaC.end}.`);
+    }
+    if (toAreaC && !areaCActive()) entering.push(toAreaC);
+    if (avoidC && (toAreaC || fromAreaC)) {
       avoidC = false;
-      const v = carVerdict();
-      notes.push(v.level === 'bad'
-        ? 'Attenzione: il percorso entra in Area C, dove la tua auto è vietata quando Area C è attiva.'
-        : `Il percorso entra in Area C perché ${toZones.some(z => z.properties.kind === 'AREA_C') ? 'l\'arrivo' : 'la partenza'} è dentro: ${areaCActive() ? `serve il ticket da ${eur(S.rules.areaC.ticket)}` : 'ora Area C non è attiva'}.`);
+      if (areaCActive()) notes.push(`Il percorso entra in Area C perché ${toAreaC ? 'l\'arrivo' : 'la partenza'} è dentro: serve il ticket da ${eur(S.rules.areaC.ticket)}.`);
     }
+    const allowed = [...fromZones, ...entering];
 
     // Le ZTL interne ad Area C sono già escluse con Area C: non le ripeto (poligoni sovrapposti non sono validi).
     const areaC = S.zones.find(z => z.properties.kind === 'AREA_C');
@@ -479,12 +504,36 @@ async function planRoute(e) {
     drawRoute(line);
     const sum = route.properties.summary;
     const steps = route.properties.segments.flatMap(s => s.steps);
+    const tripMin = Math.round(sum.duration / 60);
+
+    // Entri in una zona spenta: controllo che non si accenda prima che tu arrivi.
+    const zoneName = z => z.properties.kind === 'AREA_C' ? 'Area C' : `la ZTL ${z.properties.name}`;
+    let level = 'ok';
+    for (const z of entering) {
+      const wait = minutesToActivation(z);
+      const at = wait == null ? '' : clock(romeNow().minutes + wait);
+      if (wait != null && wait <= tripMin + 10) {
+        level = 'bad';
+        notes.unshift(`Attenzione: ${zoneName(z)} si attiva alle ${at}, tra ${wait} minuti, e il viaggio dura circa ${tripMin}. Rischi di entrare quando è già attiva: parti subito o parcheggia fuori.`);
+      } else {
+        const when = z.properties.kind === 'AREA_C' ? `riparte ${nextActivation()}` : at ? `si attiva alle ${at}` : '';
+        const into = z.properties.kind === 'AREA_C' ? 'in Area C' : `nella ZTL ${z.properties.name}`;
+        notes.unshift(`Entri ${into} perché ora non è attiva${when ? `: ${when}` : ''}. Per non prendere la multa esci prima di quell'ora${z.properties.kind === 'AREA_C' ? ' o paga il ticket' : ''}.`);
+      }
+    }
+    let headline = `Percorso fuori dalle ZTL${avoidC ? ' e da Area C' : ''}`;
+    if (entering.length) headline = `Percorso fino all'arrivo dentro ${entering.map(zoneName).join(' e ')} (ora non attiva)`;
+    else if (toAreaC && areaCActive()) {
+      headline = 'Percorso fino all\'arrivo dentro Area C, attiva ora';
+      if (level === 'ok') level = 'warn';
+    }
+
     document.getElementById('routeClear').hidden = false;
     document.getElementById('routeResult').innerHTML = `
-      <div class="route-sum"><b>${Math.round(sum.duration / 60)} min</b><span>${sum.distance.toFixed(1).replace('.', ',')} km · da ${esc(from.label)} a ${esc(to.label)}</span></div>
+      <div class="route-sum"><b>${tripMin} min</b><span>${sum.distance.toFixed(1).replace('.', ',')} km · da ${esc(from.label)} a ${esc(to.label)}</span></div>
       ${crossed.size
         ? `<div class="verdict bad">Attenzione: il percorso tocca ${[...crossed].join(', ')}<small>Può succedere ai bordi delle zone. Controlla sulla mappa prima di partire.</small></div>`
-        : `<div class="verdict ok">Percorso fuori dalle ZTL${avoidC ? ' e da Area C' : ''}${notes.length ? '' : ''}<small>${notes.join(' ') || 'Segui la linea blu sulla mappa. Attiva “Usa la mia posizione” per gli avvisi durante il viaggio.'}</small></div>`}
+        : `<div class="verdict ${level}">${headline}<small>${notes.join(' ') || 'Segui la linea blu sulla mappa. Attiva “Usa la mia posizione” per gli avvisi durante il viaggio.'}</small></div>`}
       ${notes.length && crossed.size ? `<p class="hint">${notes.join(' ')}</p>` : ''}
       <details class="route-steps"><summary>Indicazioni passo passo (${steps.length})</summary>
         <ol>${steps.map(s => `<li>${esc(s.instruction)} <span>${s.distance >= 0.05 ? '· ' + (s.distance < 1 ? Math.round(s.distance * 1000) + ' m' : s.distance.toFixed(1).replace('.', ',') + ' km') : ''}</span></li>`).join('')}</ol>
