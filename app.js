@@ -509,7 +509,8 @@ function setResult(html) {
 /* ---------- Ricerca indirizzi ---------- */
 
 const KEY_STORE = 'milano-ztl-ors-key';
-const ORS_URL = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+// HeiGIT ha spostato OpenRouteService da api.openrouteservice.org (in dismissione) ad api.heigit.org.
+const ORS_URL = 'https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson';
 const getKey = () => { try { return localStorage.getItem(KEY_STORE) || ''; } catch { return ''; } };
 
 function showKeySetup(show) {
@@ -773,10 +774,11 @@ async function computeRoute(from, to, { recalc = false } = {}) {
     }),
   }).catch(() => {
     // con una chiave sbagliata il servizio risponde senza le intestazioni CORS e il browser vede solo un errore di rete
-    throw new Error('OpenRouteService non ha accettato la richiesta: controlla la connessione. Se il problema resta, la chiave potrebbe essere sbagliata: cambiala dal menu ☰.');
+    throw new Error('OpenRouteService non ha risposto. Di solito è la connessione, oppure il limite della chiave gratuita (40 percorsi al minuto, 2000 al giorno): riprova tra un minuto. Se continua, la chiave potrebbe essere sbagliata: cambiala dal menu ☰.');
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 || res.status === 403) throw new Error('La chiave di OpenRouteService non è valida: cambiala dal menu ☰.');
+  if (res.status === 429) throw new Error('Hai raggiunto il limite della chiave gratuita (40 percorsi al minuto, 2000 al giorno): riprova tra un minuto.');
   if (!res.ok) throw new Error(data?.error?.message ? `Percorso non trovato (${data.error.message}).` : 'Percorso non trovato: prova con indirizzi diversi.');
 
   const route = data.features[0];
