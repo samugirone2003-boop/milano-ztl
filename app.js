@@ -615,8 +615,8 @@ const NEARBY = {
   charging: { label: 'Ricarica', tags: ['amenity:charging_station'] },
 };
 
-async function nearby(which, kind) {
-  const c = searchCenter();
+async function nearby(which, kind, around) {
+  const c = around ? { lat: around.lat, lon: around.lon, where: 'all\'arrivo' } : searchCenter();
   const k = NEARBY[kind];
   $('suggest').innerHTML = `<li class="s-title">Cerco ${k.label.toLowerCase()} vicino ${c.where}…</li>`;
   sugAbort?.abort();
@@ -627,7 +627,8 @@ async function nearby(which, kind) {
     const items = (await res.json()).features.map(f => photonPlace(f))
       .map(p => ({ ...p, dist: pointDistance(c.lat, c.lon, [p.lon, p.lat]) }))
       .filter(p => p.title)
-      .sort((a, b) => a.dist - b.dist);
+      // prima quelli raggiungibili adesso (fuori da zone attive), poi i più vicini
+      .sort((a, b) => (!!a.zone?.bad - !!b.zone?.bad) || a.dist - b.dist);
     renderSuggest(which, items, `${k.label} vicino ${c.where}`);
   } catch { /* ricerca interrotta o senza rete */ }
 }
@@ -698,10 +699,12 @@ function saveRecent(place) {
 
 /* ---------- Percorso che evita Area C e ZTL (OpenRouteService) ---------- */
 
-function routeMessage(level, title, note) {
+const PARK_BTN = '<button class="btn primary" data-act="parking">🅿️ Parcheggi vicino all\'arrivo</button>';
+
+function routeMessage(level, title, note, extra = '') {
   if (S.nav) { speak(title); endNav(); }
   setResult(`<div class="verdict ${level}">${title}${note ? `<small>${note}</small>` : ''}</div>
-    <div class="actions"><button class="btn" data-act="clear">Chiudi</button></div>`);
+    <div class="actions">${extra}<button class="btn" data-act="clear">Chiudi</button></div>`);
   setSheet('peek');
 }
 
@@ -737,7 +740,9 @@ async function computeRoute(from, to, { recalc = false } = {}) {
     const on = ztlActiveNow(toZtl.properties);
     if (on !== false) {
       routeMessage('bad', `L'arrivo è dentro la ZTL ${toZtl.properties.name}${on ? ', attiva ora' : ''}`,
-        `${on ? toZtl.properties.schedule || '' : 'L\'orario di questa ZTL nei dati del Comune non è chiaro, quindi per prudenza non ti ci porto.'} Per non prendere la multa parcheggia fuori dalla ZTL e prosegui a piedi: scegli un arrivo appena fuori dal bordo rosa sulla mappa.`);
+        `${on ? toZtl.properties.schedule || '' : 'L\'orario di questa ZTL nei dati del Comune non è chiaro, quindi per prudenza non ti ci porto.'} Per non prendere la multa parcheggia fuori dalla ZTL e prosegui a piedi: scegli un arrivo appena fuori dal bordo rosa sulla mappa.`,
+        PARK_BTN);
+      S.parkNear = to;
       return false;
     }
     entering.push(toZtl);
@@ -746,7 +751,8 @@ async function computeRoute(from, to, { recalc = false } = {}) {
   const fromAreaC = fromZones.find(z => z.properties.kind === 'AREA_C');
   if (toAreaC && areaCActive() && carVerdict().level === 'bad') {
     routeMessage('bad', 'L\'arrivo è dentro Area C, attiva ora, e la tua auto non può entrare',
-      `Area C è attiva fino alle ${S.rules.areaC.end}. Parcheggia fuori dalla cerchia dei Bastioni oppure parti dopo le ${S.rules.areaC.end}.`);
+      `Area C è attiva fino alle ${S.rules.areaC.end}. Parcheggia fuori dalla cerchia dei Bastioni oppure parti dopo le ${S.rules.areaC.end}.`, PARK_BTN);
+    S.parkNear = to;
     return false;
   }
   if (toAreaC && !areaCActive()) entering.push(toAreaC);
@@ -779,6 +785,22 @@ async function computeRoute(from, to, { recalc = false } = {}) {
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 || res.status === 403) throw new Error('La chiave di OpenRouteService non è valida: cambiala dal menu ☰.');
   if (res.status === 429) throw new Error('Hai raggiunto il limite della chiave gratuita (40 percorsi al minuto, 2000 al giorno): riprova tra un minuto.');
+  if (!res.ok && polys.length && /could not be found|Unable to find a route/i.test(data?.error?.message || '')) {
+    // Senza percorso evitando le zone: provo senza, per capire se il punto si raggiunge solo passando da una ZTL o da Area C.
+    const free = await fetch(ORS_URL, {
+      method: 'POST',
+      headers: { Authorization: getKey(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coordinates: [[from.lon, from.lat], [to.lon, to.lat]] }),
+    }).catch(() => null);
+    if (free?.ok) {
+      S.parkNear = to;
+      routeMessage('warn', 'Ci si arriva solo passando da una ZTL' + (avoidC ? ' o da Area C' : ''),
+        `La partenza o l'arrivo stanno in una strada che si raggiunge solo attraversando una zona vietata (o un'area pedonale). Per non prendere la multa scegli un arrivo vicino, appena fuori, per esempio un parcheggio.${avoidC && areaCActive() && carVerdict().level !== 'bad' ? ' Se puoi entrare in Area C pagando, prova anche a togliere “Evita Area C”.' : ''}`,
+        PARK_BTN);
+      return false;
+    }
+    throw new Error('Questo punto non si raggiunge in auto (area pedonale, cortile o strada chiusa): scegli un indirizzo vicino.');
+  }
   if (!res.ok) throw new Error(data?.error?.message ? `Percorso non trovato (${data.error.message}).` : 'Percorso non trovato: prova con indirizzi diversi.');
 
   const route = data.features[0];
@@ -1038,6 +1060,7 @@ function initRoute() {
     if (act === 'steps') setSheet($('sheet').dataset.state === 'full' ? 'peek' : 'full');
     if (act === 'clear') clearRoute();
     if (act === 'exit') endNav();
+    if (act === 'parking' && S.parkNear) { openSearch('to'); nearby('to', 'parking', S.parkNear); }
   });
 
   S.voice = store.get(VOICE_KEY, true);
