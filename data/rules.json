@@ -1,10 +1,28 @@
 {
   "checked": "2026-10-29",
   "areaC": {
-    "days": [1, 2, 3, 4, 5],
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
     "start": "07:30",
     "end": "19:30",
-    "holidays": ["01-01", "01-06", "04-25", "05-01", "06-02", "08-15", "11-01", "12-07", "12-08", "12-25", "12-26"],
+    "holidays": [
+      "01-01",
+      "01-06",
+      "04-25",
+      "05-01",
+      "06-02",
+      "08-15",
+      "11-01",
+      "12-07",
+      "12-08",
+      "12-25",
+      "12-26"
+    ],
     "easterMonday": true,
     "ticket": 7.5,
     "lateTicket": 22.5,
@@ -12,15 +30,64 @@
     "lateBy": "dal secondo al settimo giorno dopo l'ingresso",
     "bans": {
       "benzina": [
-        { "euro": [0, 1, 2], "from": null },
-        { "euro": [3], "from": "2024-10-01" },
-        { "euro": [4], "from": "2027-10-01" },
-        { "euro": [5], "from": "2030-10-01" }
+        {
+          "euro": [
+            0,
+            1,
+            2
+          ],
+          "from": null
+        },
+        {
+          "euro": [
+            3
+          ],
+          "from": "2024-10-01"
+        },
+        {
+          "euro": [
+            4
+          ],
+          "from": "2027-10-01"
+        },
+        {
+          "euro": [
+            5
+          ],
+          "from": "2030-10-01"
+        }
       ],
       "diesel": [
-        { "euro": [0, 1, 2, 3, 4, 5], "from": null },
-        { "euro": [6], "sub": ["ABC"], "from": "2028-10-01" },
-        { "euro": [6], "sub": ["DTEMP", "D"], "from": "2029-10-01" }
+        {
+          "euro": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "from": null
+        },
+        {
+          "euro": [
+            6
+          ],
+          "sub": [
+            "ABC"
+          ],
+          "from": "2028-10-01"
+        },
+        {
+          "euro": [
+            6
+          ],
+          "sub": [
+            "DTEMP",
+            "D"
+          ],
+          "from": "2029-10-01"
+        }
       ]
     },
     "hybridFreeMaxCo2": 100
@@ -34,8 +101,25 @@
     "areaB": "https://www.comune.milano.it/argomenti/mobilita/area-b"
   },
   "watch": [
-    { "name": "Area C", "url": "https://www.comune.milano.it/argomenti/mobilita/area-c", "lastUpdate": "15/10/2026" },
-    { "name": "Area C - calendario dei divieti", "url": "https://www.comune.milano.it/argomenti/mobilita/area-c-calendario-dei-divieti", "lastUpdate": "15/10/2026" },
-    { "name": "ZTL Quadrilatero della Moda", "url": "https://www.comune.milano.it/servizi/mobilita/ztl-quadrilatero-della-moda", "lastUpdate": "26/10/2026" }
+    {
+      "name": "Area C",
+      "url": "https://www.comune.milano.it/argomenti/mobilita/area-c",
+      "lastUpdate": "15/10/2026"
+    },
+    {
+      "name": "Area C - calendario dei divieti",
+      "url": "https://www.comune.milano.it/argomenti/mobilita/area-c-calendario-dei-divieti",
+      "lastUpdate": "15/10/2026"
+    },
+    {
+      "name": "ZTL Quadrilatero della Moda",
+      "url": "https://www.comune.milano.it/servizi/mobilita/ztl-quadrilatero-della-moda",
+      "lastUpdate": "26/10/2026"
+    },
+    {
+      "name": "ZTL Isola",
+      "url": "https://www.comune.milano.it/servizi/mobilita/ztl-isola",
+      "lastUpdate": "21/09/2026"
+    }
   ]
 }
