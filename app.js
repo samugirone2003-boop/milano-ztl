@@ -485,6 +485,10 @@ async function planRoute(e) {
         language: 'it', units: 'km', instructions: true,
         options: { avoid_polygons: { type: 'MultiPolygon', coordinates: polys } },
       }),
+    }).catch(() => {
+      // con una chiave sbagliata il servizio risponde senza le intestazioni CORS e il browser vede solo un errore di rete
+      showKeySetup(true);
+      throw new Error('OpenRouteService non ha accettato la richiesta: di solito vuol dire che la chiave è sbagliata. Incollala di nuovo qui sopra (è una stringa lunga, non il nome che le hai dato). Se la chiave è giusta, controlla la connessione.');
     });
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 || res.status === 403) {
@@ -559,6 +563,10 @@ function initRoute() {
     e.preventDefault();
     const key = document.getElementById('keyInput').value.trim();
     if (!key) return;
+    if (key.length < 30) {
+      routeMessage('warn', 'Questa non sembra la chiave', `Hai incollato ${key.length} caratteri: la chiave di OpenRouteService è molto più lunga. Copiala per intero dal tuo account su account.heigit.org, non il nome che le hai dato.`);
+      return;
+    }
     try { localStorage.setItem(KEY_STORE, key); } catch { /* senza memoria la chiave vale solo per questa visita */ }
     document.getElementById('keyInput').value = '';
     showKeySetup(false);
