@@ -66,7 +66,7 @@
           <span><i class="sw ztl"></i>ZTL</span>
           <span><i class="sw varco"></i>Varco</span>
         </div>
-        <p class="hint">Cerca un indirizzo: il percorso evita Area C e ZTL. Se l'arrivo è in una zona che ora è spenta, ti ci porta. Tieni premuto sulla mappa per scegliere un punto.</p>
+        <p class="hint">Cerca una via o un locale per nome (bar, ristoranti, negozi): il percorso evita Area C e ZTL. Se l'arrivo è in una zona che ora è spenta, ti ci porta. Tieni premuto sulla mappa per scegliere un punto.</p>
       </div>
       <div id="routeResult" aria-live="polite"></div>
     </div>
@@ -80,7 +80,7 @@
       </button>
       <form class="route" id="routeForm" autocomplete="off">
         <div class="field"><i class="dot from"></i><input id="from" type="text" placeholder="La mia posizione" aria-label="Partenza" enterkeyhint="next"></div>
-        <div class="field"><i class="dot to"></i><input id="to" type="text" placeholder="Dove vuoi andare?" aria-label="Arrivo" enterkeyhint="go"></div>
+        <div class="field"><i class="dot to"></i><input id="to" type="text" placeholder="Via, bar, ristorante, negozio…" aria-label="Arrivo" enterkeyhint="go"></div>
         <button class="icon-btn swap" id="swap" type="button" aria-label="Inverti partenza e arrivo">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M8 4v15m0 0-3.5-3.5M8 19l3.5-3.5M16 20V5m0 0-3.5 3.5M16 5l3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
@@ -89,6 +89,13 @@
     </div>
     <div class="panel-body">
       <label class="check"><input type="checkbox" id="avoidC" checked> Evita Area C (le ZTL vengono evitate sempre)</label>
+      <div class="cats" id="cats">
+        <button type="button" data-kind="parking">🅿️ Parcheggi</button>
+        <button type="button" data-kind="bar">☕ Bar</button>
+        <button type="button" data-kind="restaurant">🍝 Ristoranti</button>
+        <button type="button" data-kind="fuel">⛽ Benzinai</button>
+        <button type="button" data-kind="charging">🔌 Ricarica</button>
+      </div>
       <ul class="suggest" id="suggest"></ul>
       <div id="keySetup" hidden>
         <h3>Serve una chiave (una volta sola)</h3>

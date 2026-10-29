@@ -221,6 +221,17 @@ label.check input { width: 20px; height: 20px; accent-color: var(--accent); }
   padding: 12px 2px; border-bottom: 1px solid var(--line); cursor: pointer;
 }
 .suggest .s-ico { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; color: var(--muted); }
+.cats { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 12px -16px 0; padding: 2px 16px; }
+.cats::-webkit-scrollbar { display: none; }
+.cats button {
+  flex: none; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 999px;
+  padding: 8px 14px; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.cats button:active { background: var(--surface); }
+.suggest .s-text { flex: 1; min-width: 0; }
+.suggest .s-dist { flex: none; color: var(--muted); font-size: 13px; }
+.suggest .tag { margin: 4px 0 0; }
+.tag.off { background: var(--ok-bg); color: var(--ok); }
 .suggest b { display: block; font-weight: 500; font-size: 16px; }
 .suggest small { display: block; color: var(--muted); font-size: 13px; }
 .suggest .s-title { font-size: 13px; font-weight: 600; color: var(--muted); padding: 14px 2px 4px; border: 0; }
@@ -262,6 +273,8 @@ select {
 
 /* ---------- Mappa ---------- */
 .leaflet-container { font-family: Inter, sans-serif; }
+/* modalità scura: la mappa stradale resta a colori ma più scura, così di notte non abbaglia e le strade si leggono */
+.tiles-dark { filter: brightness(0.72) contrast(1.1) saturate(0.85); }
 .leaflet-popup-content { font-size: 14px; line-height: 1.45; margin: 12px 14px; }
 .leaflet-popup-content b { font-size: 15px; }
 .leaflet-control-attribution { font-size: 10px; }

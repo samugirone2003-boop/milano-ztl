@@ -190,10 +190,12 @@ function initMap() {
   const dark = matchMedia('(prefers-color-scheme: dark)').matches;
   // niente pulsanti +/-: sul telefono si zooma con le dita
   map = L.map('map', { zoomControl: false }).setView([45.4642, 9.19], 14);
-  const esri = name => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${dark ? 'Dark' : 'Light'}_Gray_${name}/MapServer/tile/{z}/{y}/{x}`;
-  const tiles = { maxZoom: 19, maxNativeZoom: 16 };
-  L.tileLayer(esri('Base'), { ...tiles, attribution: 'Tiles &copy; Esri, HERE, Garmin, &copy; OpenStreetMap' }).addTo(map);
-  L.tileLayer(esri('Reference'), tiles).addTo(map);
+  // Mappa stradale a colori: ha dettagli fino a zoom 18, quindi resta nitida anche in guida (zoom 17).
+  // Al buio la stessa mappa viene scurita (classe tiles-dark nel CSS).
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19, maxNativeZoom: 18, className: dark ? 'tiles-dark' : '',
+    attribution: 'Tiles &copy; Esri, HERE, Garmin, &copy; OpenStreetMap',
+  }).addTo(map);
 
   const css = getComputedStyle(document.documentElement);
   const color = kind => css.getPropertyValue(kind === 'AREA_C' ? '--areac' : '--ztl').trim();
@@ -551,12 +553,38 @@ function resolvePlace(which) {
   return geocode(text);
 }
 
+// Tipi di luogo di OpenStreetMap -> nome italiano mostrato nei suggerimenti.
+const CATEGORY = {
+  bar: 'Bar', cafe: 'Bar', pub: 'Pub', restaurant: 'Ristorante', fast_food: 'Fast food', ice_cream: 'Gelateria',
+  pizza: 'Pizzeria', bakery: 'Panetteria', pastry: 'Pasticceria', nightclub: 'Discoteca', biergarten: 'Birreria',
+  parking: 'Parcheggio', fuel: 'Benzinaio', charging_station: 'Ricarica auto', car_wash: 'Autolavaggio',
+  supermarket: 'Supermercato', convenience: 'Minimarket', mall: 'Centro commerciale', department_store: 'Grande magazzino',
+  clothes: 'Abbigliamento', shoes: 'Scarpe', pharmacy: 'Farmacia', hospital: 'Ospedale', clinic: 'Clinica', doctors: 'Medico',
+  hotel: 'Hotel', hostel: 'Ostello', guest_house: 'B&B', museum: 'Museo', theatre: 'Teatro', cinema: 'Cinema',
+  university: 'Università', school: 'Scuola', college: 'Scuola', library: 'Biblioteca', bank: 'Banca', atm: 'Bancomat',
+  post_office: 'Posta', place_of_worship: 'Chiesa', park: 'Parco', stadium: 'Stadio', sports_centre: 'Centro sportivo',
+  fitness_centre: 'Palestra', station: 'Stazione', hairdresser: 'Parrucchiere', marketplace: 'Mercato', attraction: 'Attrazione',
+};
+
+// Zona in cui si trova un luogo, da mostrare accanto al suggerimento.
+function zoneTag(lat, lon) {
+  if (lat == null) return null;
+  const zones = zonesAt(lat, lon);
+  const ztl = zones.find(z => z.properties.kind === 'ZTL');
+  if (ztl) return { text: `ZTL ${ztl.properties.name}`, bad: ztlActiveNow(ztl.properties) !== false };
+  if (zones.length) return { text: 'Area C', bad: areaCActive() };
+  return null;
+}
+
 // Suggerimenti mentre scrivi con Photon (OpenStreetMap), che a differenza di Nominatim li permette.
-function photonPlace(f, query) {
+// Trova vie, numeri civici e locali per nome (bar, ristoranti, negozi…).
+function photonPlace(f, query = '') {
   const p = f.properties;
   const street = [p.street, p.housenumber].filter(Boolean).join(' ');
+  const category = p.osm_key !== 'highway' && p.osm_key !== 'place' && p.osm_key !== 'building' ? CATEGORY[p.osm_value] : '';
   let title = p.name || street;
-  const sub = [p.name && street !== p.name ? street : '', p.locality || p.district, p.city || p.county].filter((v, i, a) => v && a.indexOf(v) === i).join(', ');
+  const sub = [category, p.name && street !== p.name ? street : '', p.locality || p.district, p.city || p.county]
+    .filter((v, i, a) => v && a.indexOf(v) === i).join(' · ');
   const [lon, lat] = f.geometry.coordinates;
   // se hai scritto il civico e Photon trova solo la via, tengo il civico e lo cerco con Nominatim
   const number = query.match(/\b\d+[a-z]?\b/i)?.[0];
@@ -564,7 +592,43 @@ function photonPlace(f, query) {
     title = `${title} ${number}`;
     return { title, sub, label: title + (p.city ? ', ' + p.city : ''), lat: null, lon: null };
   }
-  return { title, sub, label: title + (p.city && !title.includes(p.city) ? ', ' + p.city : ''), lat, lon };
+  // per un locale l'etichetta porta anche l'indirizzo, così nella barra si capisce dov'è
+  const where = p.name && street && street !== p.name ? `, ${street}` : p.city && !title.includes(p.city) ? `, ${p.city}` : '';
+  return { title, sub, label: title + where, lat, lon, poi: !!category, zone: zoneTag(lat, lon) };
+}
+
+// Punto attorno a cui cercare: l'arrivo del percorso, la tua posizione o il centro della mappa.
+function searchCenter() {
+  if (S.route) return { lat: S.route.to.lat, lon: S.route.to.lon, where: 'all\'arrivo' };
+  if (S.lastPos) return { lat: S.lastPos.coords.latitude, lon: S.lastPos.coords.longitude, where: 'a te' };
+  const c = map.getCenter();
+  return { lat: c.lat, lon: c.lng, where: 'alla zona della mappa' };
+}
+
+// Pulsanti rapidi: luoghi di una categoria nei dintorni (Photon, ricerca inversa con filtro).
+const NEARBY = {
+  parking: { label: 'Parcheggi', tags: ['amenity:parking'] },
+  bar: { label: 'Bar', tags: ['amenity:cafe', 'amenity:bar'] },
+  restaurant: { label: 'Ristoranti', tags: ['amenity:restaurant', 'amenity:fast_food'] },
+  fuel: { label: 'Benzinai', tags: ['amenity:fuel'] },
+  charging: { label: 'Ricarica', tags: ['amenity:charging_station'] },
+};
+
+async function nearby(which, kind) {
+  const c = searchCenter();
+  const k = NEARBY[kind];
+  $('suggest').innerHTML = `<li class="s-title">Cerco ${k.label.toLowerCase()} vicino ${c.where}…</li>`;
+  sugAbort?.abort();
+  sugAbort = new AbortController();
+  try {
+    const tags = k.tags.map(t => '&osm_tag=' + t).join('');
+    const res = await fetch(`https://photon.komoot.io/reverse?lat=${c.lat}&lon=${c.lon}&radius=2${tags}&limit=15`, { signal: sugAbort.signal });
+    const items = (await res.json()).features.map(f => photonPlace(f))
+      .map(p => ({ ...p, dist: pointDistance(c.lat, c.lon, [p.lon, p.lat]) }))
+      .filter(p => p.title)
+      .sort((a, b) => a.dist - b.dist);
+    renderSuggest(which, items, `${k.label} vicino ${c.where}`);
+  } catch { /* ricerca interrotta o senza rete */ }
 }
 
 let sugTimer, sugAbort;
@@ -576,13 +640,16 @@ function suggest(which) {
     sugAbort?.abort();
     sugAbort = new AbortController();
     try {
-      const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=7&lat=45.4642&lon=9.19`, { signal: sugAbort.signal });
+      const c = searchCenter();
+      const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lat=${c.lat}&lon=${c.lon}`, { signal: sugAbort.signal });
       const data = await res.json();
       const seen = new Set();
-      const items = data.features.map(f => photonPlace(f, q)).filter(p => {
-        const k = p.title + '|' + p.sub;
-        return !seen.has(k) && seen.add(k);
-      });
+      // tolgo i doppioni e i luoghi lontani (oltre 60 km: un Bar Basso a Zurigo non serve)
+      const items = data.features.filter(f => pointDistance(c.lat, c.lon, f.geometry.coordinates) < 60000)
+        .map(f => photonPlace(f, q)).filter(p => {
+          const k = p.title + '|' + p.sub;
+          return !seen.has(k) && seen.add(k);
+        });
       renderSuggest(which, items);
     } catch { /* ricerca interrotta o senza rete: restano i suggerimenti di prima */ }
   }, 250);
@@ -592,19 +659,22 @@ const ICON = {
   pin: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z" fill="currentColor"/><circle cx="12" cy="10" r="2.6" fill="var(--surface)"/></svg>',
   clock: '<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
   me: '<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="4" fill="#1a73e8"/><circle cx="12" cy="12" r="8" fill="none" stroke="#1a73e8" stroke-width="2"/></svg>',
+  shop: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 9.5 5.5 4h13L20 9.5M4 9.5h16M4 9.5c0 1.7 1.3 3 3 3s3-1.3 3-3m0 0c0 1.7 1 3 2 3s2-1.3 2-3m0 0c0 1.7 1.3 3 3 3s3-1.3 3-3M5.5 12.5V20h13v-7.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
 };
 
-function renderSuggest(which, items) {
+function renderSuggest(which, items, heading = '') {
   const recents = store.get(RECENT_KEY, []);
-  let html = '';
+  let html = heading ? `<li class="s-title">${esc(heading)}</li>` : '';
   let list = items;
+  $('cats').hidden = !!items && !heading;
   if (!items) {
     list = [...(which === 'from' ? [{ title: 'La mia posizione', label: 'La mia posizione', me: true }] : []), ...recents.map(r => ({ ...r, recent: true }))];
-    if (recents.length) html = which === 'from' ? '' : '<li class="s-title">Recenti</li>';
+    if (recents.length && which === 'to') html = '<li class="s-title">Recenti</li>';
   }
-  html += list.map((p, i) => `<li><button type="button" data-i="${i}"><span class="s-ico">${p.me ? ICON.me : p.recent ? ICON.clock : ICON.pin}</span>
-    <span><b>${esc(p.title)}</b>${p.sub ? `<small>${esc(p.sub)}</small>` : ''}</span></button></li>`).join('');
-  if (items && !items.length) html = '<li class="s-title">Nessun suggerimento: premi Invio per cercare comunque</li>';
+  html += list.map((p, i) => `<li><button type="button" data-i="${i}"><span class="s-ico">${p.me ? ICON.me : p.recent ? ICON.clock : p.poi ? ICON.shop : ICON.pin}</span>
+    <span class="s-text"><b>${esc(p.title)}</b>${p.sub ? `<small>${esc(p.sub)}</small>` : ''}${p.zone ? `<span class="tag ${p.zone.bad ? 'always' : 'off'}">${esc(p.zone.text)}${p.zone.bad ? ' attiva' : ' spenta'}</span>` : ''}</span>
+    ${p.dist != null ? `<span class="s-dist">${meters(p.dist)}</span>` : ''}</button></li>`).join('');
+  if (items && !items.length) html += `<li class="s-title">${heading ? 'Nessun risultato qui vicino' : 'Nessun suggerimento: premi Invio per cercare comunque'}</li>`;
   const ul = $('suggest');
   ul.innerHTML = html;
   ul.onclick = e => {
@@ -928,6 +998,12 @@ function initRoute() {
     $(which).addEventListener('input', () => suggest(which));
     $(which).addEventListener('focus', () => { if (getKey()) showKeySetup(false); suggest(which); });
   }
+  $('cats').addEventListener('click', e => {
+    const kind = e.target.closest('[data-kind]')?.dataset.kind;
+    if (!kind) return;
+    const which = document.activeElement === $('from') ? 'from' : 'to';
+    nearby(which, kind);
+  });
   $('from').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('to').focus(); } });
   $('swap').addEventListener('click', () => {
     const f = $('from').value, t = $('to').value;
