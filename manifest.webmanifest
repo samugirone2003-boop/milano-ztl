@@ -1,11 +1,16 @@
 {
   "name": "Area C e ZTL Milano",
   "short_name": "ZTL Milano",
-  "description": "Area C, ZTL e varchi di Milano con i dati del Comune.",
+  "description": "Area C, ZTL e varchi di Milano con i dati del Comune, percorsi che le evitano e guida con avvisi.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#111315",
-  "theme_color": "#111315",
-  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
 }

@@ -2,12 +2,18 @@
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <title>Area C e ZTL Milano</title>
-  <meta name="description" content="Mappa di Area C, ZTL e varchi di Milano con i dati ufficiali del Comune, la tua posizione e il controllo per la tua auto.">
-  <meta name="theme-color" content="#111315">
+  <meta name="description" content="Mappa di Area C, ZTL e varchi di Milano con i dati ufficiali del Comune, percorsi che evitano le zone e avvisi in base alla posizione.">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111315" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="ZTL Milano">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -15,119 +21,169 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="top">
-    <div class="brand">Area C <span>e</span> ZTL <small>Milano</small></div>
-    <div class="now" id="now" aria-live="polite"></div>
-  </header>
+  <div id="map"></div>
 
-  <section class="map-wrap">
-    <div class="alert" id="alert" role="status" aria-live="assertive" hidden></div>
-    <div id="map"></div>
-    <div class="map-legend">
-      <span><i class="sw areac"></i>Area C</span>
-      <span><i class="sw ztl"></i>ZTL</span>
-      <span><i class="sw varco"></i>Varco</span>
+  <!-- In alto: ricerca (o indicazione di guida durante la navigazione), stato di Area C, avvisi -->
+  <div class="top-ui">
+    <div class="nav-banner" id="navBanner" hidden>
+      <div class="nav-arrow" id="navArrow"></div>
+      <div class="nav-text"><b id="navDist"></b><span id="navInstr"></span></div>
     </div>
-    <button class="locate" id="locate" aria-pressed="false">
-      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-      <span>Usa la mia posizione</span>
+    <div class="search" id="searchBar">
+      <button class="search-main" id="searchOpen" type="button">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m15.5 15.5 5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        <span id="searchLabel">Dove vuoi andare?</span>
+      </button>
+      <button class="icon-btn" id="infoOpen" type="button" aria-label="Regole, la mia auto e informazioni">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="chips">
+      <span id="now"></span>
+      <button class="chip" id="carChip" type="button"></button>
+    </div>
+    <div class="alert" id="alert" role="status" aria-live="assertive" hidden></div>
+  </div>
+
+  <!-- Pulsanti tondi sulla mappa -->
+  <div class="fabs" id="fabs">
+    <button class="fab" id="voice" type="button" aria-pressed="true" aria-label="Voce" hidden>
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path class="mute" d="m16 9 6 6m0-6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
     </button>
+    <button class="fab recenter" id="recenter" type="button" hidden>Ricentra</button>
+    <button class="fab" id="locate" type="button" aria-pressed="false" aria-label="Usa la mia posizione">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><circle cx="12" cy="12" r="3.5" fill="currentColor"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+
+  <!-- Pannello dal basso: legenda, poi il percorso trovato -->
+  <section class="sheet" id="sheet" data-state="peek">
+    <button class="handle" id="sheetHandle" type="button" aria-label="Espandi o riduci il pannello"><i></i></button>
+    <div class="sheet-body">
+      <div id="home">
+        <div class="legend">
+          <span><i class="sw areac"></i>Area C</span>
+          <span><i class="sw ztl"></i>ZTL</span>
+          <span><i class="sw varco"></i>Varco</span>
+        </div>
+        <p class="hint">Cerca un indirizzo: il percorso evita Area C e ZTL. Se l'arrivo è in una zona che ora è spenta, ti ci porta. Tieni premuto sulla mappa per scegliere un punto.</p>
+      </div>
+      <div id="routeResult" aria-live="polite"></div>
+    </div>
   </section>
 
-  <main class="wrap">
-    <section class="card" id="percorso">
-      <h2>Percorso senza multe</h2>
+  <!-- Ricerca a schermo intero -->
+  <div class="panel" id="searchPanel" hidden>
+    <div class="panel-head">
+      <button class="icon-btn" type="button" data-close aria-label="Indietro">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <form class="route" id="routeForm" autocomplete="off">
+        <div class="field"><i class="dot from"></i><input id="from" type="text" placeholder="La mia posizione" aria-label="Partenza" enterkeyhint="next"></div>
+        <div class="field"><i class="dot to"></i><input id="to" type="text" placeholder="Dove vuoi andare?" aria-label="Arrivo" enterkeyhint="go"></div>
+        <button class="icon-btn swap" id="swap" type="button" aria-label="Inverti partenza e arrivo">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M8 4v15m0 0-3.5-3.5M8 19l3.5-3.5M16 20V5m0 0-3.5 3.5M16 5l3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button type="submit" id="routeBtn" hidden>Calcola percorso</button>
+      </form>
+    </div>
+    <div class="panel-body">
+      <label class="check"><input type="checkbox" id="avoidC" checked> Evita Area C (le ZTL vengono evitate sempre)</label>
+      <ul class="suggest" id="suggest"></ul>
       <div id="keySetup" hidden>
-        <p>Per calcolare i percorsi serve una chiave gratuita di OpenRouteService (una volta sola):</p>
+        <h3>Serve una chiave (una volta sola)</h3>
         <ol class="steps">
           <li>Crea un account gratuito su <a href="https://account.heigit.org/signup" target="_blank" rel="noopener">account.heigit.org</a> (è il sito di OpenRouteService).</li>
-          <li>Nel tuo account copia la chiave API di OpenRouteService.</li>
+          <li>Copia la tua chiave API: è una stringa lunga.</li>
           <li>Incollala qui sotto: resta salvata solo su questo dispositivo.</li>
         </ol>
         <form class="row" id="keyForm">
           <input id="keyInput" type="text" autocomplete="off" spellcheck="false" placeholder="Incolla la chiave" aria-label="Chiave OpenRouteService">
           <button class="btn primary" type="submit">Salva</button>
         </form>
+        <div id="keyMsg"></div>
       </div>
-      <form class="route" id="routeForm" hidden>
-        <label>Partenza
-          <span class="row">
-            <input id="from" type="text" autocomplete="off" placeholder="Indirizzo, oppure la mia posizione">
-            <button class="btn" type="button" id="fromHere" title="Usa la mia posizione">📍</button>
-          </span>
-        </label>
-        <label>Arrivo
-          <input id="to" type="text" autocomplete="off" placeholder="Indirizzo di arrivo, es. via Tortona 31">
-        </label>
-        <label class="check"><input type="checkbox" id="avoidC" checked> Evita Area C (consigliato anche se potresti entrare pagando)</label>
-        <p class="hint">Le ZTL vengono evitate sempre, a qualsiasi ora, per non rischiare.</p>
-        <div class="row">
-          <button class="btn primary" type="submit" id="routeBtn">Calcola percorso</button>
-          <button class="btn" type="button" id="routeClear" hidden>Cancella</button>
-          <button class="btn link" type="button" id="keyChange">Cambia chiave</button>
-        </div>
-      </form>
-      <div id="routeResult" aria-live="polite"></div>
-    </section>
+    </div>
+  </div>
 
-    <section class="card" id="auto">
-      <h2>La mia auto</h2>
-      <form class="car" id="carForm">
-        <label>Alimentazione
-          <select id="fuel">
-            <option value="benzina">Benzina</option>
-            <option value="gas">Benzina + GPL o metano</option>
-            <option value="diesel">Diesel</option>
-            <option value="ibrida-benzina">Ibrida benzina</option>
-            <option value="ibrida-diesel">Ibrida diesel</option>
-            <option value="elettrica">Elettrica</option>
-          </select>
-        </label>
-        <label id="euroField">Classe Euro
-          <select id="euro">
-            <option value="">Scegli…</option>
-            <option value="0">Euro 0</option>
-            <option value="1">Euro 1</option>
-            <option value="2">Euro 2</option>
-            <option value="3">Euro 3</option>
-            <option value="4">Euro 4</option>
-            <option value="5">Euro 5</option>
-            <option value="6">Euro 6</option>
-          </select>
-        </label>
-        <label id="subField" hidden>Sigla Euro 6
-          <select id="sub">
-            <option value="ABC">Euro 6 A, B o C</option>
-            <option value="DTEMP">Euro 6 D-TEMP</option>
-            <option value="D">Euro 6 D</option>
-          </select>
-        </label>
-        <label class="check" id="co2Field" hidden><input type="checkbox" id="co2"> CO₂ fino a 100 g/km (campo V.7 del libretto)</label>
-      </form>
-      <div id="carResult" aria-live="polite"></div>
-      <p class="hint">La classe Euro è sul libretto, campo V.9. <a id="plateLink" target="_blank" rel="noopener">Verifica ufficiale con la targa →</a></p>
-    </section>
+  <!-- Informazioni: auto, regole, ZTL, fonti -->
+  <div class="panel" id="infoPanel" hidden>
+    <div class="panel-head">
+      <button class="icon-btn" type="button" data-close aria-label="Indietro">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <h2>Area C e ZTL Milano</h2>
+    </div>
+    <div class="panel-body cards">
+      <section class="card" id="install">
+        <h2>Mettila sul telefono</h2>
+        <p id="installText">Su iPhone apri questo sito con Safari, tocca <b>Condividi</b> (il quadrato con la freccia) e poi <b>Aggiungi alla schermata Home</b>. Su Android, in Chrome tocca <b>⋮</b> e poi <b>Installa app</b> o <b>Aggiungi a schermata Home</b>.</p>
+        <button class="btn primary" id="installBtn" type="button" hidden>Installa l'app</button>
+      </section>
 
-    <section class="card" id="areac">
-      <h2>Area C</h2>
-      <div id="areacInfo"></div>
-    </section>
+      <section class="card" id="auto">
+        <h2>La mia auto</h2>
+        <form class="car" id="carForm">
+          <label>Alimentazione
+            <select id="fuel">
+              <option value="benzina">Benzina</option>
+              <option value="gas">Benzina + GPL o metano</option>
+              <option value="diesel">Diesel</option>
+              <option value="ibrida-benzina">Ibrida benzina</option>
+              <option value="ibrida-diesel">Ibrida diesel</option>
+              <option value="elettrica">Elettrica</option>
+            </select>
+          </label>
+          <label id="euroField">Classe Euro
+            <select id="euro">
+              <option value="">Scegli…</option>
+              <option value="0">Euro 0</option>
+              <option value="1">Euro 1</option>
+              <option value="2">Euro 2</option>
+              <option value="3">Euro 3</option>
+              <option value="4">Euro 4</option>
+              <option value="5">Euro 5</option>
+              <option value="6">Euro 6</option>
+            </select>
+          </label>
+          <label id="subField" hidden>Sigla Euro 6
+            <select id="sub">
+              <option value="ABC">Euro 6 A, B o C</option>
+              <option value="DTEMP">Euro 6 D-TEMP</option>
+              <option value="D">Euro 6 D</option>
+            </select>
+          </label>
+          <label class="check" id="co2Field" hidden><input type="checkbox" id="co2"> CO₂ fino a 100 g/km (campo V.7 del libretto)</label>
+        </form>
+        <div id="carResult" aria-live="polite"></div>
+        <p class="hint">La classe Euro è sul libretto, campo V.9. <a id="plateLink" target="_blank" rel="noopener">Verifica ufficiale con la targa →</a></p>
+      </section>
 
-    <section class="card" id="ztl">
-      <h2>ZTL</h2>
-      <p class="hint">Tocca una ZTL per vederla sulla mappa. Gli orari e chi può entrare sono quelli dei dati del Comune.</p>
-      <ul class="ztl-list" id="ztlList"></ul>
-    </section>
+      <section class="card" id="areac">
+        <h2>Area C</h2>
+        <div id="areacInfo"></div>
+      </section>
 
-    <section class="card" id="dati">
-      <h2>Da dove vengono i dati</h2>
-      <div id="sources"></div>
-    </section>
-  </main>
+      <section class="card" id="ztl">
+        <h2>ZTL</h2>
+        <p class="hint">Tocca una ZTL per vederla sulla mappa. Gli orari e chi può entrare sono quelli dei dati del Comune.</p>
+        <ul class="ztl-list" id="ztlList"></ul>
+      </section>
 
-  <footer class="wrap foot">
-    <p>Strumento non ufficiale. In caso di dubbio valgono la segnaletica stradale e le pagine del <a href="https://www.comune.milano.it/argomenti/mobilita" target="_blank" rel="noopener">Comune di Milano</a>. Dati: Comune di Milano (licenza CC BY). Mappa: Esri, © OpenStreetMap.</p>
-  </footer>
+      <section class="card" id="percorsi">
+        <h2>Percorsi</h2>
+        <p class="hint">I percorsi sono calcolati da OpenRouteService con la tua chiave gratuita, salvata solo su questo dispositivo.</p>
+        <div class="links"><button class="btn" id="keyChange" type="button">Cambia chiave</button></div>
+      </section>
+
+      <section class="card" id="dati">
+        <h2>Da dove vengono i dati</h2>
+        <div id="sources"></div>
+      </section>
+
+      <p class="foot">Strumento non ufficiale. In caso di dubbio valgono la segnaletica stradale e le pagine del <a href="https://www.comune.milano.it/argomenti/mobilita" target="_blank" rel="noopener">Comune di Milano</a>. Dati: Comune di Milano (licenza CC BY). Mappa: Esri, © OpenStreetMap. Ricerca indirizzi: Photon e Nominatim (© OpenStreetMap).</p>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="app.js"></script>
