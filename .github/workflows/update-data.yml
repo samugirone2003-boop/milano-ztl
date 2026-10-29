@@ -1,0 +1,45 @@
+name: Aggiorna dati Area C e ZTL
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"   # ogni lunedì alle 4:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Scarica i dati aperti del Comune
+        run: python3 scripts/update_data.py
+
+      - name: Salva le modifiche
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/zones.geojson data/varchi.geojson data/meta.json
+          if git diff --cached --quiet; then
+            echo "Nessuna modifica ai dati"
+          else
+            git commit -m "Aggiorna dati Area C e ZTL ($(date -u +%Y-%m-%d))"
+            git push
+          fi
+
+      - name: Segnala se le regole vanno ricontrollate
+        if: hashFiles('data/rules_changed.txt') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Ricontrollare le regole di Area C e ZTL"
+          if gh issue list --state open --search "$title in:title" --json number --jq 'length' | grep -qx 0; then
+            gh issue create --title "$title" --body-file data/rules_changed.txt
+          fi
