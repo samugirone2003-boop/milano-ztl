@@ -144,3 +144,26 @@ select {
   .brand small { display: none; }
 }
 .ztl-list b .tag { display: inline-block; margin-top: 0; font-size: 11px; }
+
+/* Percorso */
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row input { flex: 1; min-width: 0; }
+input[type="text"] {
+  font: 16px Inter, sans-serif; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 10px; padding: 11px 12px; width: 100%;
+}
+.route { display: grid; gap: 12px; }
+.route .check { color: var(--text); }
+.steps { margin: 0 0 12px; padding-left: 20px; font-size: 15px; }
+.steps li { margin-bottom: 4px; }
+button.btn { cursor: pointer; font-family: Inter, sans-serif; color: var(--text); }
+button.btn.primary { color: var(--bg); }
+.btn.link { border: 0; background: none; color: var(--muted); font-weight: 500; text-decoration: underline; padding: 8px 4px; }
+.btn[disabled] { opacity: 0.6; cursor: wait; }
+.route-sum { display: flex; gap: 18px; align-items: baseline; margin: 14px 0 6px; }
+.route-sum b { font-size: 26px; letter-spacing: -0.02em; }
+.route-steps { margin-top: 10px; }
+.route-steps summary { cursor: pointer; font-weight: 600; }
+.route-steps ol { padding-left: 20px; margin: 8px 0 0; font-size: 14px; }
+.route-steps li { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.route-steps li span { color: var(--muted); }

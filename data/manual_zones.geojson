@@ -10,32 +10,177 @@
         "rules": "Divieto di accesso e circolazione per tutti i veicoli, salvo le categorie autorizzate indicate dal Comune. Motoveicoli e ciclomotori possono entrare fino al 12 maggio 2028.",
         "always": true,
         "officialName": "Quadrilatero",
-        "source": "Perimetro ricalcato a mano dalla mappa ufficiale del Comune (incroci da OpenStreetMap). Il tratto lungo corso Vittorio Emanuele è approssimato.",
+        "source": "Perimetro ricalcato a mano dalla mappa ufficiale del Comune (incroci da OpenStreetMap): esclude via Manzoni, via Senato e corso Venezia. Il tratto lungo corso Vittorio Emanuele è approssimato.",
         "sourceUrl": "https://www.comune.milano.it/servizi/mobilita/ztl-quadrilatero-della-moda",
         "checked": "2026-10-29"
       },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[
-          [9.190008, 45.467447],
-          [9.191052, 45.468445],
-          [9.192463, 45.469757],
-          [9.192782, 45.470063],
-          [9.194743, 45.471940],
-          [9.195225, 45.472248],
-          [9.197166, 45.470642],
-          [9.199255, 45.468797],
-          [9.198605, 45.468045],
-          [9.197998, 45.467147],
-          [9.197259, 45.466848],
-          [9.196948, 45.465894],
-          [9.195088, 45.465306],
-          [9.194022, 45.465008],
-          [9.193261, 45.464886],
-          [9.192467, 45.465600],
-          [9.190662, 45.467012],
-          [9.190008, 45.467447]
-        ]]
+        "coordinates": [
+          [
+            [
+              9.190198,
+              45.467467
+            ],
+            [
+              9.191241,
+              45.468419
+            ],
+            [
+              9.192588,
+              45.469654
+            ],
+            [
+              9.192884,
+              45.469948
+            ],
+            [
+              9.19474,
+              45.471804
+            ],
+            [
+              9.195207,
+              45.472113
+            ],
+            [
+              9.19706,
+              45.470529
+            ],
+            [
+              9.199069,
+              45.468763
+            ],
+            [
+              9.198413,
+              45.46804
+            ],
+            [
+              9.197816,
+              45.46719
+            ],
+            [
+              9.197094,
+              45.466917
+            ],
+            [
+              9.196829,
+              45.466
+            ],
+            [
+              9.195066,
+              45.465441
+            ],
+            [
+              9.194051,
+              45.465142
+            ],
+            [
+              9.19332,
+              45.465015
+            ],
+            [
+              9.192572,
+              45.465713
+            ],
+            [
+              9.190844,
+              45.467055
+            ],
+            [
+              9.190198,
+              45.467467
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "ZTL",
+        "name": "Isola",
+        "schedule": "attiva tutti i giorni dalle 19:30 alle 6:00",
+        "rules": "Divieto di accesso e circolazione dalle 19:30 alle 6:00, salvo residenti, domiciliati e categorie autorizzate (taxi, NCC, moto e ciclomotori, veicoli con pass disabili, soccorso). Aree pedonali di via Borsieri, via Pepe, via Toce e piazza Minniti vietate 24 ore su 24. Multe con telecamere dal 7 settembre 2026.",
+        "night": true,
+        "officialName": "Isola",
+        "source": "Perimetro ricalcato a mano dalla mappa ufficiale del Comune (incroci da OpenStreetMap): include via Pepe, via De Castillia e via Sassetti, esclude via Farini, viale Stelvio e viale Zara.",
+        "sourceUrl": "https://www.comune.milano.it/servizi/mobilita/ztl-isola",
+        "checked": "2026-10-29"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              9.182984,
+              45.488367
+            ],
+            [
+              9.18539,
+              45.494331
+            ],
+            [
+              9.192572,
+              45.492393
+            ],
+            [
+              9.191238,
+              45.48989
+            ],
+            [
+              9.192666,
+              45.489046
+            ],
+            [
+              9.193642,
+              45.487819
+            ],
+            [
+              9.194418,
+              45.486239
+            ],
+            [
+              9.194273,
+              45.486011
+            ],
+            [
+              9.191811,
+              45.48559
+            ],
+            [
+              9.190387,
+              45.485386
+            ],
+            [
+              9.188259,
+              45.485256
+            ],
+            [
+              9.186557,
+              45.485886
+            ],
+            [
+              9.185672,
+              45.486293
+            ],
+            [
+              9.185022,
+              45.486749
+            ],
+            [
+              9.183882,
+              45.487133
+            ],
+            [
+              9.182668,
+              45.487727
+            ],
+            [
+              9.182984,
+              45.488367
+            ]
+          ]
+        ]
       }
     }
   ]

@@ -1,7 +1,7 @@
 // Fa funzionare il sito anche con poca rete: file del sito e dati dalla rete se possibile, altrimenti dalla copia salvata.
-const CACHE = 'milano-ztl-v1';
+const CACHE = 'milano-ztl-v2';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'icon.svg', 'manifest.webmanifest',
-  'data/rules.json', 'data/zones.geojson', 'data/varchi.geojson', 'data/meta.json',
+  'data/rules.json', 'data/zones.geojson', 'data/varchi.geojson', 'data/meta.json', 'data/avoid.geojson',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'];
 
 self.addEventListener('install', e => {

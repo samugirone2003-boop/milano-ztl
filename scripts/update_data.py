@@ -9,6 +9,7 @@ scrive data/rules_changed.txt, che il workflow di GitHub usa per aprire una segn
 Funziona solo con la libreria standard di Python.
 """
 import json
+import math
 import os
 import re
 import sys
@@ -60,15 +61,71 @@ def round_coords(coords):
     return json.loads(json.dumps(coords), parse_float=lambda v: round(float(v), 6))
 
 
+# Le zone da evitare nel calcolo dei percorsi sono semplificate (meno punti, richieste più leggere).
+# Il perimetro di Area C corre lungo la cerchia dei Bastioni, che invece è percorribile: lo stringo
+# di qualche metro verso l'interno perché il navigatore non escluda anche la cerchia.
+SIMPLIFY_M = 4
+AREA_C_INSET = 12
+
+
+def _xy(ring):
+    lat0 = sum(p[1] for p in ring) / len(ring)
+    kx, ky = 111320 * math.cos(math.radians(lat0)), 110540
+    return [((lon) * kx, (lat) * ky) for lon, lat in ring], kx, ky
+
+
+def _simplify(pts, tol):
+    """Douglas-Peucker su coordinate in metri."""
+    if len(pts) < 3:
+        return pts
+    (ax, ay), (bx, by) = pts[0], pts[-1]
+    dx, dy = bx - ax, by - ay
+    norm = math.hypot(dx, dy) or 1
+    far, idx = 0, 0
+    for i, (px, py) in enumerate(pts[1:-1], 1):
+        d = abs(dy * px - dx * py + bx * ay - by * ax) / norm
+        if d > far:
+            far, idx = d, i
+    if far <= tol:
+        return [pts[0], pts[-1]]
+    return _simplify(pts[:idx + 1], tol)[:-1] + _simplify(pts[idx:], tol)
+
+
+def avoid_ring(ring, inset):
+    pts, kx, ky = _xy(ring)
+    if pts[0] == pts[-1]:
+        pts = pts[:-1]
+    # un anello chiuso va diviso in due metà (dal primo punto al più lontano e ritorno)
+    k = max(range(len(pts)), key=lambda i: math.hypot(pts[i][0] - pts[0][0], pts[i][1] - pts[0][1]))
+    pts = _simplify(pts[:k + 1], SIMPLIFY_M)[:-1] + _simplify(pts[k:] + [pts[0]], SIMPLIFY_M)[:-1]
+    if inset:
+        area = sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(pts, pts[1:] + pts[:1])) / 2
+        sign = 1 if area > 0 else -1  # antiorario: l'interno è a sinistra dei lati
+        moved = []
+        for i, (x, y) in enumerate(pts):
+            (px, py), (nx, ny) = pts[i - 1], pts[(i + 1) % len(pts)]
+            n1 = (-(y - py), x - px)
+            n2 = (-(ny - y), nx - x)
+            n1 = [c * sign / (math.hypot(*n1) or 1) for c in n1]
+            n2 = [c * sign / (math.hypot(*n2) or 1) for c in n2]
+            bx, by = n1[0] + n2[0], n1[1] + n2[1]
+            blen = math.hypot(bx, by) or 1
+            cos_half = max(0.5, blen / 2)  # limita l'allungamento sugli angoli molto acuti
+            moved.append((x + bx / blen * inset / cos_half, y + by / blen * inset / cos_half))
+        pts = moved
+    out = [[round(x / kx, 6), round(y / ky, 6)] for x, y in pts]
+    return out + [out[0]]
+
+
 def check_rule_pages(rules):
     """Confronta la data 'Ultimo aggiornamento' delle pagine ufficiali con quella registrata.
 
     Se il sito del Comune non risponde alle richieste automatiche lo segnala e basta: in ogni caso,
-    dopo 90 giorni dall'ultimo controllo a mano delle regole, chiede di ricontrollarle.
+    dopo 30 giorni dall'ultimo controllo a mano delle regole, chiede di ricontrollarle.
     """
     changes, errors = [], []
     age = (date.today() - date.fromisoformat(rules["checked"])).days
-    if age > 90:
+    if age > 30:
         changes.append(f"- Le regole sono state controllate l'ultima volta il {rules['checked']} ({age} giorni fa): ricontrolla le pagine ufficiali.")
     for page in rules["watch"]:
         try:
@@ -129,8 +186,17 @@ def main():
         "geometry": {"type": "Point", "coordinates": round_coords(g["geometry"]["coordinates"][:2])},
     } for g in gates["features"] if g.get("geometry")]
 
+    avoid = [{
+        "type": "Feature",
+        "properties": {"kind": z["properties"]["kind"], "name": z["properties"]["name"]},
+        "geometry": {"type": "MultiPolygon", "coordinates": [
+            [avoid_ring(poly[0], AREA_C_INSET if z["properties"]["kind"] == "AREA_C" else 0)]
+            for poly in (z["geometry"]["coordinates"] if z["geometry"]["type"] == "MultiPolygon" else [z["geometry"]["coordinates"]])
+        ]},
+    } for z in zones]
+
     os.makedirs(DATA, exist_ok=True)
-    for name, features in (("zones.geojson", zones), ("varchi.geojson", varchi)):
+    for name, features in (("zones.geojson", zones), ("varchi.geojson", varchi), ("avoid.geojson", avoid)):
         with open(os.path.join(DATA, name), "w", encoding="utf-8") as fh:
             json.dump({"type": "FeatureCollection", "features": features}, fh, ensure_ascii=False, separators=(",", ":"))
 

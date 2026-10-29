@@ -35,6 +35,41 @@
   </section>
 
   <main class="wrap">
+    <section class="card" id="percorso">
+      <h2>Percorso senza multe</h2>
+      <div id="keySetup" hidden>
+        <p>Per calcolare i percorsi serve una chiave gratuita di OpenRouteService (una volta sola):</p>
+        <ol class="steps">
+          <li>Crea un account gratuito su <a href="https://openrouteservice.org/dev/#/signup" target="_blank" rel="noopener">openrouteservice.org</a>.</li>
+          <li>Nella Dashboard copia la chiave (<i>Basic Key</i>).</li>
+          <li>Incollala qui sotto: resta salvata solo su questo dispositivo.</li>
+        </ol>
+        <form class="row" id="keyForm">
+          <input id="keyInput" type="text" autocomplete="off" spellcheck="false" placeholder="Incolla la chiave" aria-label="Chiave OpenRouteService">
+          <button class="btn primary" type="submit">Salva</button>
+        </form>
+      </div>
+      <form class="route" id="routeForm" hidden>
+        <label>Partenza
+          <span class="row">
+            <input id="from" type="text" autocomplete="off" placeholder="Indirizzo, oppure la mia posizione">
+            <button class="btn" type="button" id="fromHere" title="Usa la mia posizione">📍</button>
+          </span>
+        </label>
+        <label>Arrivo
+          <input id="to" type="text" autocomplete="off" placeholder="Indirizzo di arrivo, es. via Tortona 31">
+        </label>
+        <label class="check"><input type="checkbox" id="avoidC" checked> Evita Area C (consigliato anche se potresti entrare pagando)</label>
+        <p class="hint">Le ZTL vengono evitate sempre, a qualsiasi ora, per non rischiare.</p>
+        <div class="row">
+          <button class="btn primary" type="submit" id="routeBtn">Calcola percorso</button>
+          <button class="btn" type="button" id="routeClear" hidden>Cancella</button>
+          <button class="btn link" type="button" id="keyChange">Cambia chiave</button>
+        </div>
+      </form>
+      <div id="routeResult" aria-live="polite"></div>
+    </section>
+
     <section class="card" id="auto">
       <h2>La mia auto</h2>
       <form class="car" id="carForm">

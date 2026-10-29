@@ -284,7 +284,9 @@ function evaluate(pos) {
 
   if (ztl) {
     const p = ztl.properties;
-    return showAlert(isAlways(p) ? 'bad' : 'warn', `Sei dentro la ZTL ${p.name}`, (p.schedule || 'Controlla gli orari sui cartelli.') + imprecise);
+    const on = ztlActiveNow(p);
+    if (on === false) return showAlert('ok', `Sei nella ZTL ${p.name}, ora non attiva`, p.schedule + imprecise);
+    return showAlert(on ? 'bad' : 'warn', `Sei dentro la ZTL ${p.name}`, (p.schedule || 'Controlla gli orari sui cartelli.') + imprecise);
   }
   if (inAreaC && active) {
     const text = { bad: 'Sei in Area C: la tua auto non può circolare qui', warn: `Sei in Area C: ricordati il ticket da ${eur(S.rules.areaC.ticket)}`, ok: 'Sei in Area C: per la tua auto è gratis', none: 'Sei in Area C, attiva ora' };
@@ -361,13 +363,176 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && S.tracking) keepScreenOn();
 });
 
+/* ---------- Percorso che evita Area C e ZTL (OpenRouteService) ---------- */
+
+const KEY_STORE = 'milano-ztl-ors-key';
+const ORS_URL = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+let routeLayer;
+
+const getKey = () => { try { return localStorage.getItem(KEY_STORE) || ''; } catch { return ''; } };
+
+function showKeySetup(show) {
+  document.getElementById('keySetup').hidden = !show;
+  document.getElementById('routeForm').hidden = show;
+}
+
+function routeMessage(level, title, note) {
+  document.getElementById('routeResult').innerHTML = `<div class="verdict ${level}">${title}${note ? `<small>${note}</small>` : ''}</div>`;
+}
+
+// Indirizzo -> coordinate con Nominatim (OpenStreetMap), cercando prima nell'area di Milano.
+async function geocode(text) {
+  const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=it&viewbox=9.04,45.54,9.28,45.38&q='
+    + encodeURIComponent(/milano/i.test(text) ? text : text + ', Milano');
+  const res = await fetch(url, { headers: { 'Accept-Language': 'it' } });
+  const [hit] = res.ok ? await res.json() : [];
+  if (!hit) throw new Error(`Non trovo “${text}”: prova ad aggiungere il numero civico o il quartiere.`);
+  return { lat: Number(hit.lat), lon: Number(hit.lon), label: hit.display_name.split(',').slice(0, 3).join(',') };
+}
+
+function currentPosition() {
+  if (S.lastPos) return Promise.resolve({ lat: S.lastPos.coords.latitude, lon: S.lastPos.coords.longitude, label: 'La mia posizione' });
+  return new Promise((ok, ko) => navigator.geolocation
+    ? navigator.geolocation.getCurrentPosition(
+      p => ok({ lat: p.coords.latitude, lon: p.coords.longitude, label: 'La mia posizione' }),
+      () => ko(new Error('Non riesco a leggere la tua posizione: scrivi l\'indirizzo di partenza.')),
+      { enableHighAccuracy: true, timeout: 15000 })
+    : ko(new Error('Questo browser non permette di leggere la posizione.')));
+}
+
+const zonesAt = (lat, lon) => S.zones.filter(z => contains(z.geometry, lat, lon));
+
+// true/false se l'orario della ZTL è chiaro ("dalle 19:30 alle 6:00"), null se non si capisce (= prudenza).
+function ztlActiveNow(p, now = romeNow()) {
+  if (isAlways(p)) return true;
+  const m = (p.schedule || '').match(/^attiv[ao] tutti i giorni dalle (?:dalle )?(?:ore )?(\d{1,2})[:.](\d{2}) alle (?:ore )?(\d{1,2})[:.](\d{2})\s*$/i);
+  if (!m) return null;
+  const start = Number(m[1]) * 60 + Number(m[2]), end = Number(m[3]) * 60 + Number(m[4]);
+  return start < end ? now.minutes >= start && now.minutes < end : now.minutes >= start || now.minutes < end;
+}
+
+async function planRoute(e) {
+  e.preventDefault();
+  const fromText = document.getElementById('from').value.trim();
+  const toText = document.getElementById('to').value.trim();
+  if (!toText) return routeMessage('none', 'Scrivi l\'indirizzo di arrivo');
+  const btn = document.getElementById('routeBtn');
+  btn.disabled = true;
+  btn.textContent = 'Calcolo…';
+  try {
+    const [from, to] = await Promise.all([
+      !fromText || /mia posizione/i.test(fromText) ? currentPosition() : geocode(fromText),
+      geocode(toText),
+    ]);
+    let avoidC = document.getElementById('avoidC').checked;
+    const notes = [];
+
+    // Se arrivo o partenza sono dentro una zona, il navigatore non può evitarla del tutto.
+    const toZones = zonesAt(to.lat, to.lon), fromZones = zonesAt(from.lat, from.lon);
+    const toZtl = toZones.find(z => z.properties.kind === 'ZTL');
+    if (toZtl && ztlActiveNow(toZtl.properties) !== false) {
+      return routeMessage('bad', `L'arrivo è dentro la ZTL ${toZtl.properties.name}`,
+        `${toZtl.properties.schedule || ''} Per non prendere la multa parcheggia fuori dalla ZTL e prosegui a piedi: scegli un arrivo appena fuori dal bordo tratteggiato o rosa sulla mappa.`);
+    }
+    if (toZtl) notes.push(`L'arrivo è nella ZTL ${toZtl.properties.name}, ora non attiva (${toZtl.properties.schedule}): esci prima che si attivi.`);
+    const allowed = [...fromZones, ...(toZtl ? [toZtl] : [])];
+    if (avoidC && (toZones.some(z => z.properties.kind === 'AREA_C') || fromZones.some(z => z.properties.kind === 'AREA_C'))) {
+      avoidC = false;
+      const v = carVerdict();
+      notes.push(v.level === 'bad'
+        ? 'Attenzione: il percorso entra in Area C, dove la tua auto è vietata quando Area C è attiva.'
+        : `Il percorso entra in Area C perché ${toZones.some(z => z.properties.kind === 'AREA_C') ? 'l\'arrivo' : 'la partenza'} è dentro: ${areaCActive() ? `serve il ticket da ${eur(S.rules.areaC.ticket)}` : 'ora Area C non è attiva'}.`);
+    }
+
+    // Le ZTL interne ad Area C sono già escluse con Area C: non le ripeto (poligoni sovrapposti non sono validi).
+    const areaC = S.zones.find(z => z.properties.kind === 'AREA_C');
+    const insideC = f => f.geometry.coordinates.every(p => p[0].every(([lon, lat]) => contains(areaC.geometry, lat, lon)));
+    const polys = S.avoid
+      .filter(f => f.properties.kind === 'ZTL'
+        ? !allowed.some(z => z.properties.name === f.properties.name) && !(avoidC && insideC(f))
+        : avoidC)
+      .flatMap(f => f.geometry.coordinates);
+    const res = await fetch(ORS_URL, {
+      method: 'POST',
+      headers: { Authorization: getKey(), 'Content-Type': 'application/json', Accept: 'application/geo+json, application/json' },
+      body: JSON.stringify({
+        coordinates: [[from.lon, from.lat], [to.lon, to.lat]],
+        language: 'it', units: 'km', instructions: true,
+        options: { avoid_polygons: { type: 'MultiPolygon', coordinates: polys } },
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401 || res.status === 403) {
+      showKeySetup(true);
+      throw new Error('La chiave di OpenRouteService non è valida: incollala di nuovo.');
+    }
+    if (!res.ok) throw new Error(data?.error?.message ? `Percorso non trovato (${data.error.message}).` : 'Percorso non trovato: prova con indirizzi diversi.');
+
+    const route = data.features[0];
+    const line = route.geometry.coordinates;
+    // Controllo di sicurezza: il percorso non deve attraversare le zone evitate.
+    const crossed = new Set();
+    for (const [lon, lat] of line) for (const z of zonesAt(lat, lon)) {
+      if (z.properties.kind === 'ZTL' && !allowed.includes(z)) crossed.add('ZTL ' + z.properties.name);
+      if (z.properties.kind === 'AREA_C' && avoidC) crossed.add('Area C');
+    }
+    drawRoute(line);
+    const sum = route.properties.summary;
+    const steps = route.properties.segments.flatMap(s => s.steps);
+    document.getElementById('routeClear').hidden = false;
+    document.getElementById('routeResult').innerHTML = `
+      <div class="route-sum"><b>${Math.round(sum.duration / 60)} min</b><span>${sum.distance.toFixed(1).replace('.', ',')} km · da ${esc(from.label)} a ${esc(to.label)}</span></div>
+      ${crossed.size
+        ? `<div class="verdict bad">Attenzione: il percorso tocca ${[...crossed].join(', ')}<small>Può succedere ai bordi delle zone. Controlla sulla mappa prima di partire.</small></div>`
+        : `<div class="verdict ok">Percorso fuori dalle ZTL${avoidC ? ' e da Area C' : ''}${notes.length ? '' : ''}<small>${notes.join(' ') || 'Segui la linea blu sulla mappa. Attiva “Usa la mia posizione” per gli avvisi durante il viaggio.'}</small></div>`}
+      ${notes.length && crossed.size ? `<p class="hint">${notes.join(' ')}</p>` : ''}
+      <details class="route-steps"><summary>Indicazioni passo passo (${steps.length})</summary>
+        <ol>${steps.map(s => `<li>${esc(s.instruction)} <span>${s.distance >= 0.05 ? '· ' + (s.distance < 1 ? Math.round(s.distance * 1000) + ' m' : s.distance.toFixed(1).replace('.', ',') + ' km') : ''}</span></li>`).join('')}</ol>
+      </details>`;
+  } catch (err) {
+    routeMessage('warn', 'Non sono riuscito a calcolare il percorso', esc(err.message));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Calcola percorso';
+  }
+}
+
+function drawRoute(line) {
+  routeLayer?.remove();
+  routeLayer = L.polyline(line.map(([lon, lat]) => [lat, lon]), { color: '#1971c2', weight: 6, opacity: 0.85 }).addTo(map);
+  map.fitBounds(routeLayer.getBounds(), { padding: [30, 30] });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function initRoute() {
+  showKeySetup(!getKey());
+  document.getElementById('keyForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const key = document.getElementById('keyInput').value.trim();
+    if (!key) return;
+    try { localStorage.setItem(KEY_STORE, key); } catch { /* senza memoria la chiave vale solo per questa visita */ }
+    document.getElementById('keyInput').value = '';
+    showKeySetup(false);
+  });
+  document.getElementById('keyChange').addEventListener('click', () => showKeySetup(true));
+  document.getElementById('fromHere').addEventListener('click', () => { document.getElementById('from').value = 'La mia posizione'; });
+  document.getElementById('routeForm').addEventListener('submit', planRoute);
+  document.getElementById('routeClear').addEventListener('click', () => {
+    routeLayer?.remove();
+    routeLayer = null;
+    document.getElementById('routeResult').innerHTML = '';
+    document.getElementById('routeClear').hidden = true;
+  });
+}
+
 /* ---------- Avvio ---------- */
 
 const load = path => fetch(path, { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(path); return r.json(); });
 
-Promise.all([load('data/rules.json'), load('data/zones.geojson'), load('data/varchi.geojson'), load('data/meta.json')])
-  .then(([rules, zones, varchi, meta]) => {
-    Object.assign(S, { rules, zones: zones.features, varchi: varchi.features, meta });
+Promise.all([load('data/rules.json'), load('data/zones.geojson'), load('data/varchi.geojson'), load('data/meta.json'), load('data/avoid.geojson')])
+  .then(([rules, zones, varchi, meta, avoid]) => {
+    Object.assign(S, { rules, zones: zones.features, varchi: varchi.features, meta, avoid: avoid.features });
+    initRoute();
     renderNow();
     setInterval(() => { renderNow(); if (S.lastPos) evaluate(S.lastPos); }, 60000);
     initMap();
